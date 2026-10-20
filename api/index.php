@@ -5,7 +5,34 @@ error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE & ~E_WARNING);
 const BASE_URL  = 'https://watchanimeworld.one/';
 const SITE_HOST = 'watchanimeworld.one';
 const CACHE_TTL = 21600;
-define('CACHE_DIR', __DIR__ . '/.anistream_cache');
+// Pick a writable cache location. Vercel/serverless deployments generally
+// cannot write inside the deployed project, so fall back to the temporary
+// directory. On regular PHP hosting, keep the cache beside this script.
+$cacheCandidates = [
+    __DIR__ . '/.anistream_cache',
+    rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR
+        . 'anistream_cache_' . substr(hash('sha256', __DIR__), 0, 12),
+];
+$cachePath = null;
+
+foreach ($cacheCandidates as $candidate) {
+    if (is_dir($candidate) && is_writable($candidate)) {
+        $cachePath = $candidate;
+        break;
+    }
+    if (!file_exists($candidate) && @mkdir($candidate, 0755, true)
+        && is_dir($candidate) && is_writable($candidate)) {
+        $cachePath = $candidate;
+        break;
+    }
+}
+
+if ($cachePath === null) {
+    // Leave a predictable fallback; cache operations below fail safely if
+    // the host disallows writes entirely.
+    $cachePath = $cacheCandidates[1];
+}
+define('CACHE_DIR', $cachePath);
 
 
 $action = $_GET['action'] ?? '';
